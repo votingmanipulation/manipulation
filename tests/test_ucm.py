@@ -74,11 +74,11 @@ class TestUCM(unittest.TestCase):
 
     def test_solve(self):
         m = 3
-        k = 3
+        k = 2
         alpha = borda(m)
         sigma = np.ones(m, dtype=int) * 3
 
-        frac_ms, ballots = solve(sigma, alpha, m, k)
+        frac_ms, ballots = solve(sigma, alpha, m, k, repeat=1000)
 
-        self.assertAlmostEqual(frac_ms, 6)
-        self.assertListEqual(final_scores(sigma, ballots, alpha).tolist(), [5, 5, 5])
+        self.assertAlmostEqual(frac_ms, 5.0)
+        self.assertListEqual(sorted(final_scores(sigma, ballots, alpha).tolist()), [4, 5, 6])

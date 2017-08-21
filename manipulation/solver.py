@@ -2,6 +2,9 @@ from cvxopt import solvers
 from cvxopt.base import matrix
 import numpy as np
 import logging
+import scipy.sparse as sp
+
+from manipulation.utils import to_cvxopt_spmatrix
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +27,11 @@ class LPSolver(object):
     def solve(self):
         c_ = matrix(self.c)
 
-        G = matrix(self.A)
+        if sp.issparse(self.A):
+            G = to_cvxopt_spmatrix(self.A)
+        else:
+            G = matrix(self.A)
+
         h = matrix(self.b)
 
         self.result = solvers.lp(c_, G, h, solver=solver)
