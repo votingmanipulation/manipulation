@@ -95,6 +95,7 @@ def generate_LP(alpha, ballots, sigma, m, n):
 def solve(alpha, original_ballots, m, n):
     sigma = calculate_sigma(alpha, original_ballots)
 
+    # Phase I
     A, b, c, var_dict = generate_LP(alpha, original_ballots, sigma, m, n)
 
     # visualize_lp(A, b, c, var_dict)
@@ -107,16 +108,21 @@ def solve(alpha, original_ballots, m, n):
     y_star = vars[[var_dict[('y', v)] for v in range(n)]]  # get the 'y' variables
     # X_star = vars[[var_dict[('x', i, j)] for i in range(m - 1) for j in range(m - 1)]].reshape((m - 1, m - 1))
     theta_star = vars[var_dict['theta']]
-    # k_star = vars[var_dict['k']]
+    k_star = vars[var_dict['k']]
 
-    # randomized rounding
+    # Phase II: randomized rounding of the y's
     y_tilde = np.random.rand(n) < y_star
+
 
     non_bribed_voters = (~y_tilde).nonzero()[0]
     non_bribed_voters = non_bribed_voters.tolist()
+    lp_bribed_voters = y_tilde.nonzero()[0]
+    lp_bribed_voters = lp_bribed_voters.tolist()
+
 
     k_tilde = y_tilde.sum()  # num. of voters we decided upon
 
+    # Phase III: randomized rounding of the x's
     sigma_hat = calculate_sigma(alpha, original_ballots[non_bribed_voters, :])
 
     # solve the UCM instance
@@ -127,10 +133,44 @@ def solve(alpha, original_ballots, m, n):
     lp_manip_ballots[:, :m - 1] = manip_ballots
     lp_manip_ballots[:, m - 1].fill(m - 1)
 
+
+    # Phase IV: other manipulations if necessary
+    additional_manip_ballots, additional_bribed_voters = greedy_random_algorithm(alpha, m, original_ballots,
+                                                                          lp_manip_ballots, non_bribed_voters)
+
+
+    bribed_voters = lp_bribed_voters + additional_bribed_voters
+
+    strategy = np.vstack((lp_manip_ballots, additional_manip_ballots))
+
+    return k_star, theta_star, bribed_voters, strategy
+
+
+def greedy_random_algorithm(alpha, m, original_ballots, lp_manip_ballots, non_bribed_voters):
     current_ballots = np.vstack((original_ballots[non_bribed_voters, :], lp_manip_ballots))
 
-    additional_manip_ballots, non_bribed_voters = greedy_random_algorithm(alpha, m, original_ballots, current_ballots,
-                                                                          lp_manip_ballots, non_bribed_voters)
+    additional_bribed_voters = []
+
+    additional_manip_ballots = []
+    scores = final_scores(np.zeros(m), current_ballots, alpha)
+
+    while scores[m - 1] < np.max(scores[:-1]):
+        logger.debug((scores, non_bribed_voters))
+        to_bribe = np.random.choice(non_bribed_voters)
+        logger.debug('removing ballot {}'.format(original_ballots[to_bribe, :]))
+
+        non_bribed_voters.remove(to_bribe)
+        additional_bribed_voters.append(to_bribe)
+
+        new_ballot = np.zeros(m, dtype=int)
+        new_ballot[m - 1] = m - 1
+        new_ballot[:m - 1] = np.random.permutation(m - 1)
+        logger.debug('new ballot {}'.format(new_ballot))
+        additional_manip_ballots.append(new_ballot)
+
+        current_ballots = np.vstack((original_ballots[non_bribed_voters, :], lp_manip_ballots, additional_manip_ballots))
+        scores = final_scores(np.zeros(m), current_ballots, alpha)
+    logger.debug((scores, non_bribed_voters))
 
     if len(additional_manip_ballots) > 0:
         logger.debug('len(additional_manip_ballots) > 0')
@@ -138,28 +178,5 @@ def solve(alpha, original_ballots, m, n):
     else:
         logger.debug('len(additional_manip_ballots) == 0')
         additional_manip_ballots = np.empty((0, m), dtype=int)
-    bribed_voters = set(range(n)) - set(non_bribed_voters)
 
-    strategy = np.vstack((lp_manip_ballots, additional_manip_ballots))
-
-    return theta_star, bribed_voters, strategy
-
-
-def greedy_random_algorithm(alpha, m, original_ballots, cur_ballots, lp_manip_ballots, non_bribed):
-    additional_manip_ballots = []
-    scores = final_scores(np.zeros(m), cur_ballots, alpha)
-    while scores[m - 1] < np.max(scores[:-1]):
-        logger.debug((scores, non_bribed))
-        to_bribe = np.random.choice(non_bribed)
-        logger.debug('removing ballot {}'.format(original_ballots[to_bribe, :]))
-        non_bribed.remove(to_bribe)
-        new_ballot = np.zeros(m, dtype=int)
-        new_ballot[m - 1] = m - 1
-        new_ballot[:m - 1] = np.random.permutation(m - 1)
-        logger.debug('new ballot {}'.format(new_ballot))
-        additional_manip_ballots.append(new_ballot)
-
-        cur_ballots = np.vstack((original_ballots[non_bribed, :], lp_manip_ballots, additional_manip_ballots))
-        scores = final_scores(np.zeros(m), cur_ballots, alpha)
-    logger.debug((scores, non_bribed))
-    return additional_manip_ballots, non_bribed
+    return additional_manip_ballots, additional_bribed_voters

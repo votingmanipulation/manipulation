@@ -3,9 +3,13 @@ import unittest
 import numpy as np
 from numpy import array
 
-from manipulation.bribery import generate_LP, solve
+from manipulation.bribery import generate_LP, solve, greedy_random_algorithm
 from manipulation.solver import LPSolver
 from manipulation.utils import borda, calculate_sigma, final_scores
+
+import logging
+FORMAT = '%(asctime)-15s %(clientip)s %(user)-8s %(message)s'
+logging.basicConfig(format=FORMAT)
 
 
 class TestBribery(unittest.TestCase):
@@ -101,16 +105,37 @@ class TestBribery(unittest.TestCase):
 
         # sigma = rankings_to_initial_sigmas(alpha, ballots)
 
-        frac, bribed, manip_ballots = solve(alpha, ballots, m,n)
-        print(frac, bribed, manip_ballots)
+        k_star, theta_star, bribed, manip_ballots = solve(alpha, ballots, m, n)
+        print(k_star, theta_star, bribed, manip_ballots)
 
         not_bribed = list(set(range(n)) - bribed)
 
+        all_ballots = np.vstack((ballots[not_bribed, :], manip_ballots))
 
-        all_ballots = np.vstack( ( ballots[not_bribed,:], manip_ballots ) )
-
-        scores = final_scores(np.zeros(m),  all_ballots, alpha   )
+        scores = final_scores(np.zeros(m), all_ballots, alpha)
 
         print(scores)
+
+        self.assertGreaterEqual(scores[-1], np.max(scores[:-1]))
+
+    def test_greedy_random_algorithm(self):
+        m = 4
+        n = 5
+        alpha = borda(m)
+
+        rev_alpha = alpha[::-1]
+
+        original_ballots = np.vstack([alpha, rev_alpha, alpha, rev_alpha, rev_alpha])
+
+        lp_manip_ballots = np.empty((0, m), dtype=int)  # no lp ballots
+
+        additional_manip_ballots, bribed_voters = greedy_random_algorithm(alpha, m, original_ballots, lp_manip_ballots, list(range(n)))
+
+        non_bribed_voters = set(range(n)) - set(bribed_voters)
+        non_bribed_voters = list(non_bribed_voters)
+
+        all_ballots = np.vstack( (original_ballots[non_bribed_voters,:],  additional_manip_ballots))
+
+        scores = final_scores(np.zeros(m),all_ballots, alpha)
 
         self.assertGreaterEqual(scores[-1], np.max(scores[:-1]))

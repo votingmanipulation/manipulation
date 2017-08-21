@@ -25,11 +25,11 @@ def draw_uniform_sigmas(alpha, m, n, rand=None):
     Returns:
 
     """
-    rankings = draw_uniform_rankings(m, n, rand)
+    rankings = draw_uniform_ballots(m, n, rand)
     return calculate_sigma(alpha, rankings)
 
 
-def draw_uniform_rankings(m, n, rand=None):
+def draw_uniform_ballots(m, n, rand=None):
     """
 
     Args:
