@@ -1,7 +1,7 @@
 import numpy as np
 
-from manipulation.utils import borda
-
+import logging
+logger = logging.getLogger(__name__)
 
 def reverse_unweighted(initial_sigmas, alpha, k):
     if len(initial_sigmas) != len(alpha):
@@ -25,4 +25,11 @@ def reverse_unweighted(initial_sigmas, alpha, k):
         ballots.append(ballot)
         current_awarded += alpha[ballot]
 
-    return np.array(ballots)
+
+    if len(ballots) > 0:
+        logger.debug('len(ballots) > 0')
+        ballots = np.array(ballots)
+    else:
+        logger.debug('len(additional_manip_ballots) == 0')
+        ballots = np.empty((0, m), dtype=int)
+    return ballots

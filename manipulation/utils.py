@@ -95,3 +95,13 @@ def visualize_lp(A, b,c,var_dict):
     sns.heatmap(df, annot=True, cbar=False)
     plt.show()
 
+
+def inverse_reverse_sort(a):
+    m = len(a)
+    sorted_idxs = sorted(np.arange(m), key=lambda i: a[i], reverse=True)
+    res = np.empty(m, dtype=int)
+    for rank in range(m):
+        res[sorted_idxs[rank]] = rank
+    return res
+
+

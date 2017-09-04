@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.sparse as sp
 from manipulation import ucm
+from manipulation.reverse import reverse_unweighted
 from manipulation.utils import final_scores, calculate_sigma
 
 from manipulation.solver import LPSolver
@@ -144,6 +145,66 @@ def solve(alpha, original_ballots, m, n):
     strategy = np.vstack((lp_manip_ballots, additional_manip_ballots))
 
     return k_star, theta_star, bribed_voters, strategy
+
+
+
+
+def solve_with_reverse(alpha, original_ballots, m, n):
+    sigma = calculate_sigma(alpha, original_ballots)
+
+    # Phase I
+    A, b, c, var_dict = generate_LP(alpha, original_ballots, sigma, m, n)
+
+    # visualize_lp(A, b, c, var_dict)
+
+    solver = LPSolver(np.array(A.todense()), b, c)
+    solver.solve()
+
+    vars = solver.get_x()
+
+    y_star = vars[[var_dict[('y', v)] for v in range(n)]]  # get the 'y' variables
+    # X_star = vars[[var_dict[('x', i, j)] for i in range(m - 1) for j in range(m - 1)]].reshape((m - 1, m - 1))
+    theta_star = vars[var_dict['theta']]
+    k_star = vars[var_dict['k']]
+
+    # Phase II: randomized rounding of the y's
+    y_tilde = np.random.rand(n) < y_star
+
+
+    non_bribed_voters = (~y_tilde).nonzero()[0]
+    non_bribed_voters = non_bribed_voters.tolist()
+    lp_bribed_voters = y_tilde.nonzero()[0]
+    lp_bribed_voters = lp_bribed_voters.tolist()
+
+
+    k_tilde = y_tilde.sum()  # num. of voters we decided upon
+
+    # Phase III: randomized rounding of the x's
+    sigma_hat = calculate_sigma(alpha, original_ballots[non_bribed_voters, :])
+
+    # solve the UCM instance
+    # frac_ms, manip_ballots = ucm.solve(sigma_hat[:-1], alpha[:-1], m - 1, k_tilde, repeat=10)
+    manip_ballots = reverse_unweighted(sigma_hat[:-1], alpha[:-1], k_tilde)
+
+
+    # fix manip_ballots to include p
+    lp_manip_ballots = np.zeros((k_tilde, m), dtype=int)
+    lp_manip_ballots[:, :m - 1] = manip_ballots
+    lp_manip_ballots[:, m - 1].fill(m - 1)
+
+
+    # Phase IV: other manipulations if necessary
+    additional_manip_ballots, additional_bribed_voters = greedy_random_algorithm(alpha, m, original_ballots,
+                                                                          lp_manip_ballots, non_bribed_voters)
+
+
+    bribed_voters = lp_bribed_voters + additional_bribed_voters
+
+    strategy = np.vstack((lp_manip_ballots, additional_manip_ballots))
+
+    return k_star, theta_star, bribed_voters, strategy
+
+
 
 
 def greedy_random_algorithm(alpha, m, original_ballots, lp_manip_ballots, non_bribed_voters):
